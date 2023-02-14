@@ -5,20 +5,12 @@ import (
 	"github.com/PuerkitoBio/goquery"
 	"log"
 	"net/http"
-	"strconv"
 )
 
 const url = "https://confluence.hflabs.ru/pages/viewpage.action?pageId=1181220999"
-const columnCnt = 2
 
 type Parser struct {
 	sheetsApi sheetsApi.SheetsApi
-}
-
-//Codes структура для хранения строчки таблицы
-type codes struct {
-	code        string
-	description string
 }
 
 func New(api sheetsApi.SheetsApi) Parser {
@@ -29,10 +21,9 @@ func New(api sheetsApi.SheetsApi) Parser {
 
 func (p *Parser) Run() error {
 	resp, err := http.Get(url)
-	if err != nil {
+	if err != nil || resp.StatusCode != 200 {
 		return err
 	}
-
 	defer func() {
 		err = resp.Body.Close()
 		if err != nil {
@@ -41,8 +32,8 @@ func (p *Parser) Run() error {
 	}()
 
 	//экземпляры структур для записи в них объектов html
-	temp := codes{}
-	items := make([]codes, 0)
+	temp := make([]string, 10)
+	items := make([][]string, 0)
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
@@ -51,76 +42,39 @@ func (p *Parser) Run() error {
 
 	//ищем названия колонок
 	s := doc.Find("th")
+	var columnCnt int
+
 	for i := range s.Nodes {
+		columnCnt++
 		single := s.Eq(i)
-
-		switch i % columnCnt { //проверка по номеру
-		case 0:
-			sel := single.Find("li")
-			if sel.Is("li") { //проверка на список
-				sed := single.Find("p") //заголовок списка
-				temp.description = sed.Text() + "\n"
-
-				sed = single.Find("span") //заголовок списка
-				for k := range sed.Nodes {
-					sec := sed.Eq(k)
-					temp.description += "· " + sec.Text() + "\n"
-				}
-			} else {
-				temp.code = single.Text()
-			}
-		case 1:
-			sel := single.Find("li")
-			if sel.Is("li") {
-				sed := single.Find("p")
-				temp.description = sed.Text() + "\n"
-				sed = single.Find("span")
-				for k := range sed.Nodes {
-					sec := sed.Eq(k)
-					temp.description += "· " + sec.Text() + "\n"
-				}
-			} else {
-				temp.description = single.Text()
-			}
-			items = append(items, temp)
-		default:
-			log.Fatal("columnsCnt нее соответствует ширине таблицы")
-
-		}
+		temp[i] = single.Text()
 	}
+	temp = temp[0:columnCnt]
+	items = append(items, temp)
+
+	//обходим ячейки
 	s = doc.Find("td")
+	temp = make([]string, columnCnt)
 	for i := range s.Nodes {
 		single := s.Eq(i)
-		switch i % columnCnt {
-		case 0:
-			sel := single.Find("li")
-			if sel.Is("li") {
-				sed := single.Find("p")
-				temp.description = sed.Text() + "\n"
-				sed = single.Find("span")
-				for k := range sed.Nodes {
-					sec := sed.Eq(k)
-					temp.description += "· " + sec.Text() + "\n"
-				}
-			} else {
-				temp.code = single.Text()
+		indx := i % columnCnt
+		sel := single.Find("li")
+		if sel.Is("li") { //проверяем на список
+			sed := single.Find("p")
+			if sed.Is("p") { //проверяем на заголовок списка
+				temp[indx] = sed.Text() + "\n"
 			}
-		case 1:
-			sel := single.Find("li")
-			if sel.Is("li") {
-				sed := single.Find("p")
-				temp.description = sed.Text() + "\n"
-				sed = single.Find("span")
-				for k := range sed.Nodes {
-					sec := sed.Eq(k)
-					temp.description += "· " + sec.Text() + "\n"
-				}
-			} else {
-				temp.description = single.Text()
+			sed = single.Find("span") //идем по списку
+			for k := range sed.Nodes {
+				sec := sed.Eq(k)
+				temp[indx] += "· " + sec.Text() + "\n"
 			}
-			items = append(items, temp)
-		default:
-			log.Fatal("Columns не соответствует ширине таблицы")
+		} else {
+			temp[indx] = single.Text()
+		}
+		if indx == columnCnt-1 {
+			tmp := []string{temp[0], temp[1]}
+			items = append(items, tmp)
 		}
 	}
 
@@ -132,27 +86,15 @@ func (p *Parser) Run() error {
 	return nil
 }
 
-func (p *Parser) post(items []codes) error {
+func (p *Parser) post(items [][]string) error {
 	for i := 0; i < len(items); i++ {
-		var err error
-		if i == 0 {
-			err = p.sheetsApi.Put(i, 0, "id") //для красоты
-		} else {
-			err = p.sheetsApi.Put(i, 0, strconv.Itoa(i)) //отправляем id
-		}
-		if err != nil {
-			return err
-		}
-
-		err = p.sheetsApi.Put(i, 1, items[i].code) //отправляем код
-		if err != nil {
-			return err
-		}
-
-		err = p.sheetsApi.Put(i, 2, items[i].description) //отправляем описание
-		if err != nil {
-			return err
+		for k := 0; k < len(items[0]); k++ {
+			err := p.sheetsApi.Put(i, k, items[i][k])
+			if err != nil {
+				return err
+			}
 		}
 	}
+
 	return nil
 }

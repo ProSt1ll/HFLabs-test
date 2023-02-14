@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-const timeOut = 100 //константа задержки между отправками в мсек
+const timeOut = 0 //Константа задержки между отправками в мсек
 
 type SheetsApi struct {
 	sheet *spreadsheet.Sheet
@@ -49,7 +49,7 @@ func New() SheetsApi {
 func (s *SheetsApi) Put(row int, column int, data string) error {
 	s.sheet.Update(row, column, data) //заносим данные
 
-	err := s.sheet.Synchronize()           //синзронизируем
-	time.Sleep(time.Millisecond * timeOut) //тайм-аут чтобы гугл апи не ругался на DDOS
+	err := s.sheet.Synchronize()           //синхронизируем
+	time.Sleep(time.Millisecond * timeOut) //тайм-аут не идеально, но что есть
 	return err
 }

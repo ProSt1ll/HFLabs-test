@@ -50,6 +50,6 @@ func (s *SheetsApi) Put(row int, column int, data string) error {
 	s.sheet.Update(row, column, data) //заносим данные
 
 	err := s.sheet.Synchronize()           //синхронизируем
-	time.Sleep(time.Millisecond * timeOut) //тайм-аут не идеально, но что есть
+	time.Sleep(time.Millisecond * timeOut) //тайм-аут неидеально, но что есть
 	return err
 }

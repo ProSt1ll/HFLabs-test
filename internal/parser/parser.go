@@ -7,7 +7,10 @@ import (
 	"net/http"
 )
 
-const url = "https://confluence.hflabs.ru/pages/viewpage.action?pageId=1181220999"
+const (
+	url             = "https://confluence.hflabs.ru/pages/viewpage.action?pageId=1181220999"
+	startColumnsCnt = 10
+)
 
 type Parser struct {
 	sheetsApi sheetsApi.SheetsApi
@@ -32,7 +35,7 @@ func (p *Parser) Run() error {
 	}()
 
 	//экземпляры структур для записи в них объектов html
-	temp := make([]string, 10)
+	temp := make([]string, startColumnsCnt)
 	items := make([][]string, 0)
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
